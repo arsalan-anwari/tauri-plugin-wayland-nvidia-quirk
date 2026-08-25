@@ -1,0 +1,24 @@
+[package]
+name = "tauri-plugin-wayland-nvidia-quirk"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77.2"
+description = "Fixes the Wayland/Nvidia startup failure in Tauri v2 apps (Gdk-Message: Error 71) without disabling hardware acceleration"
+authors = ["Arsalan Anwari <arsalan@anwari.nl>"]
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/arsalan-anwari/tauri-plugin-wayland-nvidia-quirk"
+homepage = "https://github.com/arsalan-anwari/tauri-plugin-wayland-nvidia-quirk"
+documentation = "https://docs.rs/tauri-plugin-wayland-nvidia-quirk"
+keywords = ["tauri", "wayland", "nvidia", "webkitgtk", "plugin"]
+categories = ["gui", "os::linux-apis"]
+include = ["/src/**/*", "/README.md", "/CHANGELOG.md", "/LICENSE", "/Cargo.toml"]
+
+[dependencies]
+tauri = "2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>tauri-plugin-wayland-nvidia-quirk</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #11141a;
+        --panel: #181c24;
+        --line: #262c38;
+        --text: #e6e9ef;
+        --muted: #8c95a6;
+        --green: #76b900;
+        --red: #ff6b6b;
+        --amber: #ffb454;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 28px 32px 40px;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      h1 { font-size: 17px; margin: 0 0 2px; font-weight: 600; }
+      p.sub { margin: 0 0 22px; color: var(--muted); font-size: 13px; }
+
+      .verdict {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 16px 18px;
+        background: linear-gradient(115deg, var(--panel), #1e2430 60%, var(--panel));
+        background-size: 220% 100%;
+        animation: drift 6s linear infinite;
+        margin-bottom: 20px;
+      }
+      @keyframes drift {
+        from { background-position: 0% 0; }
+        to { background-position: 220% 0; }
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 999px;
+        font-weight: 600;
+        font-size: 12px;
+        letter-spacing: 0.02em;
+        color: #11141a;
+      }
+      .badge.on { background: var(--green); }
+      .badge.off { background: var(--amber); }
+      .badge.bad { background: var(--red); }
+      code, pre, td.mono {
+        font-family: ui-monospace, "JetBrains Mono", Menlo, monospace;
+        font-size: 12.5px;
+      }
+      pre {
+        margin: 12px 0 0;
+        padding: 10px 12px;
+        background: #0d1015;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow-x: auto;
+        white-space: pre-wrap;
+      }
+      h2 {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin: 24px 0 8px;
+        font-weight: 600;
+      }
+      table { border-collapse: collapse; width: 100%; }
+      td, th {
+        text-align: left;
+        padding: 5px 10px 5px 0;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      th { color: var(--muted); font-weight: 500; font-size: 12px; }
+      td.mono { color: #cfd6e4; }
+      .unset { color: #5c6577; }
+      .hit { color: var(--green); }
+      button {
+        margin-top: 20px;
+        padding: 8px 14px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--text);
+        font: inherit;
+        cursor: pointer;
+      }
+      button:hover { border-color: var(--green); }
+      #second-result { margin-left: 12px; color: var(--muted); font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <h1>tauri-plugin-wayland-nvidia-quirk</h1>
+    <p class="sub">
+      If you can read this on Wayland with the Nvidia driver, the window survived its first
+      frame. The gradient above drifts, a frozen one means the app is wedged, not fixed.
+    </p>
+
+    <div class="verdict">
+      <span id="badge" class="badge off">…</span>
+      <span id="headline"></span>
+      <pre id="status">loading…</pre>
+    </div>
+
+    <h2>Session</h2>
+    <table id="session"></table>
+
+    <h2>Display adapters (/sys/class/drm)</h2>
+    <table id="gpus"></table>
+
+    <h2>Overrides</h2>
+    <table id="overrides"></table>
+
+    <button id="second">Open a window created after startup</button>
+    <span id="second-result"></span>
+
+    <script>
+      const invoke = window.__TAURI__.core.invoke;
+
+      const HEADLINES = {
+        Applied: "the quirk fired, a GL paint context was forced before the first frame",
+        NotAffected: "this machine does not have the bug, so the plugin stayed out of the way",
+        Overridden: "an environment variable told the plugin to stand down",
+        Failed: "the machine matched, but GDK refused a GL context",
+        NotRun: "the setup hook has not run",
+      };
+
+      function row(table, cells, cls) {
+        const tr = table.insertRow();
+        for (const cell of cells) {
+          const td = tr.insertCell();
+          td.className = "mono" + (cls ? " " + cls(cell) : "");
+          td.textContent = cell;
+        }
+      }
+
+      function fillEnv(table, pairs, highlight) {
+        table.innerHTML = "";
+        for (const [name, value] of pairs) {
+          const tr = table.insertRow();
+          tr.insertCell().textContent = name;
+          const td = tr.insertCell();
+          td.className = "mono";
+          td.textContent = value;
+          if (value === "(unset)") td.classList.add("unset");
+          else if (highlight) td.classList.add("hit");
+        }
+      }
+
+      async function refresh() {
+        const r = await invoke("report");
+        const kind = r.status.split(/[\s{]/)[0];
+
+        document.getElementById("status").textContent = r.status;
+        document.getElementById("headline").textContent = HEADLINES[kind] ?? "";
+
+        const badge = document.getElementById("badge");
+        badge.textContent = kind;
+        badge.className =
+          "badge " + (r.applied ? "on" : kind === "Failed" ? "bad" : "off");
+
+        fillEnv(document.getElementById("session"), r.session, true);
+        fillEnv(document.getElementById("overrides"), r.overrides, true);
+
+        const gpus = document.getElementById("gpus");
+        gpus.innerHTML = "";
+        const head = gpus.insertRow();
+        for (const label of ["card", "vendor", "driver", "drives the display"]) {
+          const th = document.createElement("th");
+          th.textContent = label;
+          head.appendChild(th);
+        }
+        for (const gpu of r.gpus) {
+          row(gpus, [gpu.card, gpu.vendor, gpu.driver, gpu.primary ? "yes" : "no"], (cell) =>
+            cell === "0x10de" || cell === "nvidia" ? "hit" : ""
+          );
+        }
+      }
+
+      document.getElementById("second").addEventListener("click", async () => {
+        const out = document.getElementById("second-result");
+        try {
+          out.textContent = await invoke("open_second_window");
+        } catch (error) {
+          out.textContent = String(error);
+        }
+        refresh();
+      });
+
+      refresh();
+    </script>
+  </body>
+</html>
