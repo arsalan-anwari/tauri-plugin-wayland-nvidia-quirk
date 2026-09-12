@@ -1,6 +1,7 @@
 # tauri-plugin-wayland-nvidia-quirk
 
 [![Crates.io](https://img.shields.io/crates/v/tauri-plugin-wayland-nvidia-quirk)](https://crates.io/crates/tauri-plugin-wayland-nvidia-quirk)
+[![Downloads](https://img.shields.io/crates/d/tauri-plugin-wayland-nvidia-quirk)](https://crates.io/crates/tauri-plugin-wayland-nvidia-quirk)
 [![Docs.rs](https://docs.rs/tauri-plugin-wayland-nvidia-quirk/badge.svg)](https://docs.rs/tauri-plugin-wayland-nvidia-quirk)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
